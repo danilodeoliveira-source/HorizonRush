@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horizon Rush: Enduro Overdrive</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #0d0d11;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #ff0055;
+            text-shadow: 0 0 10px #ff0055;
+        }
+        canvas {
+            border: 4px solid #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.4);
+            background-color: #111;
+        }
+        .controls {
+            margin-top: 15px;
+            text-align: center;
+            color: #aaaaaa;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>HORIZON RUSH</h1>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div class="controls">
+        <p>Controles: Setas <strong>Esquerda</strong> e <strong>Direita</strong> para desviar</p>
+        <p>Pressione <strong>Seta para Cima</strong> para dar Boost</p>
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Configurações do Jogo
+const ROAD_LEFT = 80;
+const ROAD_RIGHT = 320;
+const ROAD_WIDTH = ROAD_RIGHT - ROAD_LEFT;
+
+let score = 0;
+let targetScore = 30;
+let timeLeft = 60;
+let gameOver = false;
+let gameWon = false;
+let gameTime = 0;
+
+// Jogador
+const player = {
+    x: 185,
+    y: 500,
+    width: 30,
+    height: 50,
+    speed: 5,
+    isBoosting: false
+};
+
+// Tráfego
+let traffic = [];
+function spawnVehicle() {
+    const lanes = [100, 160, 220, 280];
+    const lane = lanes[Math.floor(Math.random() * lanes.length)];
+    const colors = ['#00ffff', '#ffff00', '#ff00ff', '#00ff66'];
+    
+    // Evita spawn em cima de outro carro
+    if (!traffic.some(car => car.y < 120 && car.x === lane)) {
+        traffic.push({
+            x: lane,
+            y: -60,
+            width: 30,
+            height: 50,
+            speed: Math.random() * 2 + 2,
+            color: colors[Math.floor(Math.random() * colors.length)]
+        });
+    }
+}
+
+// Teclas
+const keys = {};
+window.addEventListener('keydown', e => keys[e.code] = true);
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+// Loop de Tempo do Jogo
+const timerInterval = setInterval(() => {
+    if (!gameOver && !gameWon) {
+        timeLeft--;
+        gameTime += 1;
+        if (timeLeft <= 0) {
+            if (score >= targetScore) gameWon = true;
+            else gameOver = true;
+        }
+    }
+}, 1000);
+
+// Atualização da Lógica
+function update() {
+    if (gameOver || gameWon) return;
+
+    // Boost
+    player.isBoosting = keys['ArrowUp'];
+    const currentSpeed = player.isBoosting ? player.speed * 1.8 : player.speed;
+
+    // Movimento do Jogador
+    if (keys['ArrowLeft'] && player.x > ROAD_LEFT) {
+        player.x -= 4;
+    }
+    if (keys['ArrowRight'] && player.x + player.width < ROAD_RIGHT) {
+        player.x += 4;
+    }
+
+    // Gerar tráfego
+    if (Math.random() < 0.04) {
+        spawnVehicle();
+    }
+
+    // Atualizar Pista e Tráfego
+    for (let i = traffic.length - 1; i >= 0; i--) {
+        let car = traffic[i];
+        car.y += currentSpeed - car.speed;
+
+        // Ultrapassagem bem-sucedida
+        if (car.y > canvas.height) {
+            traffic.splice(i, 1);
+            score++;
+            if (score >= targetScore) {
+                gameWon = true;
+            }
+        }
+
+        // Colisão
+        if (
+            player.x < car.x + car.width &&
+            player.x + player.width > car.x &&
+            player.y < car.y + car.height &&
+            player.y + player.height > car.y
+        ) {
+            // Penalidade por batida
+            traffic.splice(i, 1);
+            score = Math.max(0, score - 2);
+        }
+    }
+}
+
+// Renderização Gráfica
+function draw() {
+    // 1. Ciclo de Dia/Noite no Céu
+    let skyColor = '#1a0033'; // Noite/Madrugada
+    if ((gameTime % 40) < 10) skyColor = '#ff7700'; // Pôr do sol
+    else if ((gameTime % 40) < 20) skyColor = '#0088cc'; // Dia
+    else if ((gameTime % 40) < 30) skyColor = '#ff3300'; // Alvorada
+
+    ctx.fillStyle = skyColor;
+    ctx.fillRect(0, 0, canvas.width, 150);
+
+    // 2. Asfalto
+    ctx.fillStyle = '#22222d';
+    ctx.fillRect(0, 150, canvas.width, canvas.height - 150);
+
+    // Grama nas laterais
+    ctx.fillStyle = '#052b05';
+    ctx.fillRect(0, 150, ROAD_LEFT, canvas.height - 150);
+    ctx.fillRect(ROAD_RIGHT, 150, canvas.width - ROAD_RIGHT, canvas.height - 150);
+
+    // Faixas da pista (Efeito de Movimento)
+    ctx.strokeStyle = '#ffffff';
+    ctx.setLineDash([20, 20]);
+    ctx.lineDashOffset = -gameTime * 20 % 40;
+    ctx.lineWidth = 3;
+
+    ctx.beginPath();
+    ctx.moveTo(160, 150);
+    ctx.lineTo(160, canvas.height);
+    ctx.moveTo(240, 150);
+    ctx.lineTo(240, canvas.height);
+    ctx.stroke();
+    ctx.setLineDash([]); // Reseta linha traçada
+
+    // 3. Desenhar Tráfego
+    traffic.forEach(car => {
+        ctx.fillStyle = car.color;
+        ctx.fillRect(car.x, car.y, car.width, car.height);
+        // Faróis traseiros
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(car.x + 2, car.y + car.height - 4, 6, 4);
+        ctx.fillRect(car.x + car.width - 8, car.y + car.height - 4, 6, 4);
+    });
+
+    // 4. Desenhar Jogador
+    ctx.fillStyle = player.isBoosting ? '#ff0055' : '#ffffff';
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    // Faróis dianteiros
+    ctx.fillStyle = '#ffffa0';
+    ctx.fillRect(player.x + 2, player.y, 6, 4);
+    ctx.fillRect(player.x + player.width - 8, player.y, 6, 4);
+
+    // 5. Interface (HUD)
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '16px Courier New';
+    ctx.fillText(`Meta: ${score}/${targetScore}`, 10, 30);
+    ctx.fillText(`Tempo: ${timeLeft}s`, 280, 30);
+
+    // Indicador de Boost
+    if (player.isBoosting) {
+        ctx.fillStyle = '#ff0055';
+        ctx.fillText('BOOST!', 160, 30);
+    }
+
+    // 6. Telas de Fim de Jogo
+    if (gameOver) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff0055';
+        ctx.font = '24px Courier New';
+        ctx.fillText('GAME OVER', 130, 280);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '14px Courier New';
+        ctx.fillText('Recarregue a página para tentar novamente', 30, 320);
+    } else if (gameWon) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#00ff66';
+        ctx.font = '24px Courier New';
+        ctx.fillText('ETAPA CONCLUÍDA!', 90, 280);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '14px Courier New';
+        ctx.fillText(`Ultrapassagens: ${score}`, 120, 320);
+    }
+}
+
+// Loop Principal
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
