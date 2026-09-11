@@ -24,7 +24,7 @@
             overflow: hidden;
         }
 
-        /* Gabinete de Arcade Vintage */
+        /* Gabinete Arcade */
         #cabinet {
             position: relative;
             background: #151520;
@@ -34,7 +34,6 @@
             box-shadow: 0 0 40px rgba(255, 0, 85, 0.5), inset 0 0 20px rgba(0, 0, 0, 0.8);
         }
 
-        /* Canvas nativo 320x224 reescalado sem desfoque */
         canvas {
             display: block;
             width: 800px;
@@ -45,7 +44,6 @@
             border: 4px solid #111111;
         }
 
-        /* Overlay / Menus */
         .overlay {
             position: absolute;
             top: 16px;
@@ -138,14 +136,12 @@
 <body>
 
 <div id="cabinet">
-    <!-- Canvas de resolução 8-bit real (320x224) -->
     <canvas id="game" width="320" height="224"></canvas>
 
-    <!-- Menu Principal -->
     <div id="menu-overlay" class="overlay">
         <h1>ENDURO 8-BIT</h1>
-        <h2>DESAFIO DE 5 VIDAS & CONTRAMÃO</h2>
-        <p>Desvie dos carros em sentido contrário e sobreviva aos 5 biomas climáticos!</p>
+        <h2>EDITION MULTI-PISTAS</h2>
+        <p>Pista mais larga, novas zonas (Cidade, Rio, Túnel, Floresta) e rodopios nas colisões!</p>
         
         <div class="controls-box">
             [SETAS ESQ / DIR] Direção &nbsp;|&nbsp; [SETA CIMA] Acelerar &nbsp;|&nbsp; [SETA BAIXO] Frear<br>
@@ -157,7 +153,6 @@
         </div>
     </div>
 
-    <!-- Menu de Pausa -->
     <div id="pause-overlay" class="overlay hidden">
         <h1 style="color:#00ffff; text-shadow:4px 4px 0 #ff0055;">PAUSADO</h1>
         <p>Sua corrida está temporariamente interrompida.</p>
@@ -167,7 +162,6 @@
         </div>
     </div>
 
-    <!-- Tela de Fim de Jogo / Vitória -->
     <div id="gameover-overlay" class="overlay hidden">
         <h1 id="go-title">FIM DE JOGO</h1>
         <p id="go-desc"></p>
@@ -183,7 +177,6 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-// Elementos de Overlay
 const menuOverlay = document.getElementById('menu-overlay');
 const pauseOverlay = document.getElementById('pause-overlay');
 const gameoverOverlay = document.getElementById('gameover-overlay');
@@ -196,26 +189,24 @@ document.getElementById('btn-exit').onclick = exitToMenu;
 document.getElementById('btn-restart').onclick = startGame;
 document.getElementById('btn-main').onclick = exitToMenu;
 
-// ESTADOS
 const STATE = { MENU: 0, PLAYING: 1, PAUSED: 2, GAMEOVER: 3 };
 let gameState = STATE.MENU;
 
-// CONFIGURAÇÕES DO JOGADOR
-let vidas = 5; // Jogador inicia com 5 vidas
-
-// TRAJETÓRIA TOTAL DE 40 MINUTOS (2400 Segundos)
+let vidas = 5;
 const TOTAL_TIME = 2400;
 let elapsedTime = 0;
 let carsPassed = 0;
 let lastTime = 0;
+let spinTimer = 0; // Controle do rodopio ao bater
 
-// BIOMAS CLIMÁTICOS
+// PISTAS E AMBIENTES DIVERSIFICADOS
 const ENVIRONMENTS = [
-    { name: "1. DIA ENSOLARADO",     duration: 480, sky: "#3898ff", grass: "#189018", road: "#404040", type: "day" },
-    { name: "2. SERRA NEVADA",       duration: 600, sky: "#88a8c0", grass: "#e8eff8", road: "#505060", type: "snow" },
-    { name: "3. NEBLINA DENSA",      duration: 600, sky: "#485858", grass: "#203020", road: "#303030", type: "fog" },
-    { name: "4. PÔR DO SOL",         duration: 360, sky: "#e05010", grass: "#804000", road: "#302020", type: "dusk" },
-    { name: "5. TEMPESTADE NOTURNA", duration: 360, sky: "#080818", grass: "#081808", road: "#181820", type: "night" }
+    { name: "1. CIDADE ILUMINADA", duration: 400, sky: "#111122", grass: "#222233", road: "#353540", type: "city" },
+    { name: "2. PONTE SOBRE O RIO", duration: 400, sky: "#55aaff", grass: "#1155bb", road: "#444444", type: "river" },
+    { name: "3. TÚNEL SUBTERRÂNEO", duration: 400, sky: "#050505", grass: "#151515", road: "#252525", type: "tunnel" },
+    { name: "4. FLORESTA FECHADA", duration: 400, sky: "#1b3b1b", grass: "#0a290a", road: "#302820", type: "forest" },
+    { name: "5. SERRA NEVADA",       duration: 400, sky: "#88a8c0", grass: "#e8eff8", road: "#505060", type: "snow" },
+    { name: "6. TEMPESTADE NOTURNA", duration: 400, sky: "#080818", grass: "#081808", road: "#181820", type: "night" }
 ];
 
 function getEnv(t) {
@@ -227,18 +218,17 @@ function getEnv(t) {
     return ENVIRONMENTS[ENVIRONMENTS.length - 1];
 }
 
-// FÍSICA E PISTA 8-BIT
+// FÍSICA E PISTA (MAIOR E MAIS FÁCIL)
 let speed = 0;
-const MAX_SPEED = 210;
-const ACCEL = 90;
-const DECEL = 110;
-let playerX = 0; // -1.0 a 1.0
+const MAX_SPEED = 200;
+const ACCEL = 100; // Aceleração rápida
+const DECEL = 100;
+let playerX = 0; 
 let distance = 0;
 let curve = 0;
 let targetCurve = 0;
 let curveTimer = 0;
 
-// SPRITE JOGADOR (CINZA METÁLICO)
 const PLAYER_SPRITE = [
     "....SSSSSSSS....",
     "...SGGGGGGGG....",
@@ -252,7 +242,6 @@ const PLAYER_SPRITE = [
     "..EE........EE.."
 ];
 
-// SPRITE OPONENTES
 const ENEMY_COLORS = ['#e02020', '#2080e0', '#e0a020', '#20b040', '#a020d0'];
 const ENEMY_SPRITE = [
     "...LLLLLLLL...",
@@ -263,29 +252,18 @@ const ENEMY_SPRITE = [
     ".BBDDDDDDDDB.B"
 ];
 
-// TRÁFEGO NA CONTRAMÃO (VELOCIDADE REDUZIDA)
+// TRÁFEGO REDUZIDO (Facilitando ultrapassagens)
 let traffic = [];
 function spawnTraffic() {
     traffic = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 4; i++) { // Apenas 4 carros por vez
         traffic.push({
-            x: (Math.random() * 1.4) - 0.7,
-            z: 200 + i * 220 + Math.random() * 50,
-            speed: 15 + Math.random() * 20, // Carros mais lentos vindo na contramão
+            x: (Math.random() * 1.2) - 0.6,
+            z: 250 + i * 280 + Math.random() * 50,
+            speed: 10 + Math.random() * 15,
             color: ENEMY_COLORS[Math.floor(Math.random() * ENEMY_COLORS.length)]
         });
     }
-}
-
-// NEVE
-let snowflakes = [];
-for(let i = 0; i < 45; i++) {
-    snowflakes.push({
-        x: Math.random() * 320,
-        y: Math.random() * 224,
-        speedY: 1 + Math.random() * 1.5,
-        speedX: Math.random() - 0.5
-    });
 }
 
 // ÁUDIO SINTETIZADO
@@ -325,18 +303,17 @@ function playCrashSound() {
         let osc = audioCtx.createOscillator();
         let g = audioCtx.createGain();
         osc.type = 'square';
-        osc.frequency.setValueAtTime(120, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.3);
-        g.gain.setValueAtTime(0.15, audioCtx.currentTime);
-        g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+        osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.4);
+        g.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
         osc.connect(g);
         g.connect(audioCtx.destination);
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.3);
+        osc.stop(audioCtx.currentTime + 0.4);
     } catch(e) {}
 }
 
-// CONTROLES
 const keys = {};
 window.onkeydown = e => {
     if (e.code === 'KeyP' || e.code === 'Escape') {
@@ -347,7 +324,7 @@ window.onkeydown = e => {
 window.onkeyup = e => keys[e.code] = false;
 
 function startGame() {
-    vidas = 5; // Reseta vidas para 5
+    vidas = 5;
     elapsedTime = 0;
     carsPassed = 0;
     speed = 0;
@@ -355,6 +332,7 @@ function startGame() {
     distance = 0;
     curve = 0;
     targetCurve = 0;
+    spinTimer = 0;
     spawnTraffic();
 
     menuOverlay.classList.add('hidden');
@@ -385,7 +363,6 @@ function exitToMenu() {
     updateAudio();
 }
 
-// LÓGICA DE JOGO
 function update(dt) {
     if (gameState !== STATE.PLAYING) return;
 
@@ -393,7 +370,7 @@ function update(dt) {
     if (elapsedTime >= TOTAL_TIME) {
         gameState = STATE.GAMEOVER;
         goTitle.innerText = "VITÓRIA LENDÁRIA!";
-        goDesc.innerText = `Você completou a corrida! Ultrapassou ${carsPassed} veículos na contramão!`;
+        goDesc.innerText = `Você dominou todas as pistas! Ultrapassou ${carsPassed} veículos!`;
         gameoverOverlay.classList.remove('hidden');
         updateAudio();
         return;
@@ -401,45 +378,48 @@ function update(dt) {
 
     const env = getEnv(elapsedTime);
 
-    // Curvatura procedural da pista
-    curveTimer -= dt;
-    if (curveTimer <= 0) {
-        curveTimer = 3 + Math.random() * 5;
-        targetCurve = (Math.random() * 2 - 1) * 0.8;
+    // Efeito de Girada ao Bater
+    if (spinTimer > 0) {
+        spinTimer -= dt;
+        speed = Math.max(0, speed - 180 * dt); // Perde velocidade enquanto gira
+    } else {
+        // Curvatura suave da pista (fácil)
+        curveTimer -= dt;
+        if (curveTimer <= 0) {
+            curveTimer = 4 + Math.random() * 4;
+            targetCurve = (Math.random() * 2 - 1) * 0.6; 
+        }
+        curve += (targetCurve - curve) * dt * 0.8;
+
+        // Aceleração e Freio
+        if (keys['ArrowUp']) speed += ACCEL * dt;
+        else if (keys['ArrowDown']) speed -= DECEL * 1.6 * dt;
+        else speed -= DECEL * 0.4 * dt;
+
+        // Controle responsivo
+        let handling = 2.0;
+        if (keys['ArrowLeft']) playerX -= handling * dt;
+        if (keys['ArrowRight']) playerX += handling * dt;
     }
-    curve += (targetCurve - curve) * dt * 0.8;
-
-    // Aceleração e Freio
-    if (keys['ArrowUp']) speed += ACCEL * dt;
-    else if (keys['ArrowDown']) speed -= DECEL * 1.6 * dt;
-    else speed -= DECEL * 0.4 * dt;
-
-    // Aderência na Neve
-    let handling = 1.6;
-    if (env.type === 'snow') handling = 1.1;
-
-    // Direção
-    if (keys['ArrowLeft']) playerX -= handling * dt;
-    if (keys['ArrowRight']) playerX += handling * dt;
 
     speed = Math.max(0, Math.min(speed, MAX_SPEED));
     distance += speed * dt * 10;
 
-    // Efeito da curva no carro
-    playerX -= curve * (speed / MAX_SPEED) * 0.4 * dt;
+    // Efeito suave da curva no carro
+    playerX -= curve * (speed / MAX_SPEED) * 0.3 * dt;
 
-    // Desaceleração na Grama
-    if (playerX < -0.85 || playerX > 0.85) {
-        if (speed > 50) speed -= ACCEL * 2.5 * dt;
+    // FORA DA PISTA (JOGADOR FICA ATOLADO)
+    if (playerX < -1.0 || playerX > 1.0) {
+        if (speed > 35) {
+            speed -= ACCEL * 3.5 * dt; // Fica atolado na grama/água
+        }
     }
 
-    // Tráfego na Contramão (Carros vem de frente)
+    // Tráfego
     traffic.forEach(car => {
-        // Velocidade relativa somada (contramão)
-        let relSpeed = speed + car.speed; 
+        let relSpeed = speed + car.speed;
         car.z -= relSpeed * dt * 8;
 
-        // Se passou do jogador
         if (car.z < -20) {
             car.z += 1200 + Math.random() * 200;
             car.x = (Math.random() * 1.4) - 0.7;
@@ -447,18 +427,17 @@ function update(dt) {
             carsPassed++;
         }
 
-        // Detecção de Colisão
-        if (Math.abs(car.z) < 18 && Math.abs(playerX - car.x) < 0.28) {
-            speed = 20;
-            car.z += 100; // Afasta o carro atingido
+        // Colisão (se não estiver rodopiando)
+        if (spinTimer <= 0 && Math.abs(car.z) < 20 && Math.abs(playerX - car.x) < 0.32) {
+            vidas--;
+            spinTimer = 0.55; // Dispara o rodopio
             playCrashSound();
-            
-            vidas--; // Perde 1 vida ao colidir
-            
+            car.z += 120; 
+
             if (vidas <= 0) {
                 gameState = STATE.GAMEOVER;
                 goTitle.innerText = "FIM DE JOGO";
-                goDesc.innerText = `Você perdeu todas as 5 vidas! Ultrapassou ${carsPassed} carros na contramão.`;
+                goDesc.innerText = `Você perdeu todas as vidas! Ultrapassou ${carsPassed} carros.`;
                 gameoverOverlay.classList.remove('hidden');
                 updateAudio();
                 return;
@@ -466,51 +445,55 @@ function update(dt) {
         }
     });
 
-    // Animar Neve
-    if (env.type === 'snow' || env.type === 'night') {
-        snowflakes.forEach(s => {
-            s.y += s.speedY + (speed / 50);
-            s.x += s.speedX - (curve * 2);
-            if (s.y > 224) { s.y = 0; s.x = Math.random() * 320; }
-            if (s.x < 0) s.x = 320;
-            if (s.x > 320) s.x = 0;
-        });
-    }
-
     updateAudio();
 }
 
-// RENDERIZAÇÃO
 function render() {
     const env = getEnv(elapsedTime);
 
-    // 1. CÉU
+    // 1. CÉU / CENÁRIOS DIVERSOS
     ctx.fillStyle = env.sky;
     ctx.fillRect(0, 0, 320, 80);
 
-    if (env.type === 'day') {
-        ctx.fillStyle = '#ffee66';
-        ctx.fillRect(240, 20, 16, 16);
-    } else if (env.type === 'dusk') {
-        ctx.fillStyle = '#ff3300';
-        ctx.fillRect(220, 45, 20, 12);
-    } else if (env.type === 'night') {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(250, 15, 10, 10);
+    if (env.type === 'city') {
+        // Prédios iluminados na Cidade
+        ctx.fillStyle = '#1c1c2e';
+        for (let i = 0; i < 320; i += 20) {
+            let h = 25 + (i % 3) * 12;
+            ctx.fillRect(i, 80 - h, 18, h);
+            ctx.fillStyle = '#ffff77';
+            if (i % 4 === 0) ctx.fillRect(i + 4, 80 - h + 6, 4, 4);
+            ctx.fillStyle = '#1c1c2e';
+        }
+    } else if (env.type === 'forest') {
+        // Árvores na Floresta
+        ctx.fillStyle = '#0f1a0f';
+        for (let i = 0; i < 320; i += 16) {
+            let h = 20 + (i % 5) * 6;
+            ctx.fillRect(i, 80 - h, 12, h);
+        }
+    } else if (env.type === 'tunnel') {
+        // Teto e Iluminação do Túnel
+        ctx.fillStyle = '#101010';
+        ctx.fillRect(0, 0, 320, 75);
+        ctx.fillStyle = '#ffaa00';
+        for (let i = 20; i < 320; i += 60) {
+            ctx.fillRect(i, 70, 16, 4);
+        }
+    } else {
+        // Montanhas de Fundo
+        ctx.fillStyle = (env.type === 'snow') ? '#c0d0e0' : '#102030';
+        for(let i = 0; i < 320; i += 16) {
+            let h = Math.sin(i * 0.05 + curve) * 8 + 12;
+            ctx.fillRect(i, 80 - h, 16, h);
+        }
     }
 
-    // Montanhas
-    ctx.fillStyle = (env.type === 'snow') ? '#c0d0e0' : '#102030';
-    for(let i = 0; i < 320; i += 16) {
-        let h = Math.sin(i * 0.05 + curve) * 8 + 12;
-        ctx.fillRect(i, 80 - h, 16, h);
-    }
-
-    // 2. GRAMA
+    // 2. LATERAIS DA PISTA
     ctx.fillStyle = env.grass;
     ctx.fillRect(0, 80, 320, 144);
 
-    // 3. PISTA
+    // 3. PISTA EXPANDIDA (MAIOR)
     const horizonY = 80;
     const roadH = 130;
 
@@ -518,33 +501,42 @@ function render() {
         let p = (y - horizonY) / roadH;
         let p2 = p * p;
 
-        let roadW = 6 + p2 * 160;
-        let centerX = 160 + (curve * 90 * p2) - (playerX * 70 * p);
+        // Largura base expandida para 230
+        let roadW = 10 + p2 * 230; 
+        let centerX = 160 + (curve * 80 * p2) - (playerX * 85 * p);
 
         let zPos = distance * 0.15 + (12 / (p + 0.04));
         let isStripe = (Math.floor(zPos) % 2) === 0;
 
-        let kerbW = 3 + p2 * 12;
+        let kerbW = 4 + p2 * 14;
         let stripeColor = isStripe ? '#e02020' : '#ffffff';
         let roadColor = (Math.floor(zPos) % 4 < 2) ? env.road : '#282828';
 
         ctx.fillStyle = env.grass;
         ctx.fillRect(0, y, 320, 1);
 
+        if (env.type === 'river') {
+            stripeColor = isStripe ? '#3388ff' : '#ffffff';
+        }
+
+        // Zebras
         ctx.fillStyle = stripeColor;
         ctx.fillRect(centerX - roadW/2 - kerbW, y, kerbW, 1);
         ctx.fillRect(centerX + roadW/2, y, kerbW, 1);
 
+        // Asfalto
         ctx.fillStyle = roadColor;
         ctx.fillRect(centerX - roadW/2, y, roadW, 1);
 
+        // Linhas de Faixa Dupla
         if (isStripe) {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(centerX - 1, y, 2, 1);
+            ctx.fillStyle = (env.type === 'city') ? '#ffcc00' : '#ffffff';
+            ctx.fillRect(centerX - roadW*0.2, y, 2, 1);
+            ctx.fillRect(centerX + roadW*0.2, y, 2, 1);
         }
     }
 
-    // 4. CARROS NA CONTRAMÃO
+    // 4. CARROS OPONENTES
     traffic.forEach(car => {
         if (car.z > 10 && car.z < 1000) {
             let p = 100 / car.z;
@@ -552,51 +544,35 @@ function render() {
 
             if (screenY >= horizonY && screenY < 205) {
                 let p2 = Math.pow((screenY - horizonY)/roadH, 2);
-                let roadW = 6 + p2 * 160;
-                let centerX = 160 + (curve * 90 * p2) - (playerX * 70 * (screenY - horizonY)/roadH);
-                let screenX = centerX + (car.x * roadW * 0.5);
+                let roadW = 10 + p2 * 230;
+                let centerX = 160 + (curve * 80 * p2) - (playerX * 85 * (screenY - horizonY)/roadH);
+                let screenX = centerX + (car.x * roadW * 0.45);
 
-                let scale = p * 1.2;
-                if (scale > 0.1 && scale < 2.2) {
+                let scale = p * 1.25;
+                if (scale > 0.1 && scale < 2.3) {
                     drawSpriteMatrix(ENEMY_SPRITE, screenX, screenY, scale, car.color);
                 }
             }
         }
     });
 
-    // 5. CARRO DO JOGADOR
+    // 5. CARRO DO JOGADOR COM GIRO DE COLISÃO
     let playerY = 188;
     let playerScreenX = 160;
-    drawPlayerSprite(playerScreenX, playerY);
 
-    // Faróis
-    if (env.type === 'night' || env.type === 'fog') {
-        ctx.fillStyle = 'rgba(255, 255, 200, 0.25)';
-        ctx.beginPath();
-        ctx.moveTo(playerScreenX - 12, playerY - 4);
-        ctx.lineTo(playerScreenX - 45, playerY - 80);
-        ctx.lineTo(playerScreenX + 45, playerY - 80);
-        ctx.lineTo(playerScreenX + 12, playerY - 4);
-        ctx.closePath();
-        ctx.fill();
+    ctx.save();
+    if (spinTimer > 0) {
+        // Efeito de rodopio ao colidir
+        let angle = (0.55 - spinTimer) * Math.PI * 8; 
+        ctx.translate(playerScreenX, playerY - 10);
+        ctx.rotate(angle);
+        drawPlayerSprite(0, 10);
+    } else {
+        drawPlayerSprite(playerScreenX, playerY);
     }
+    ctx.restore();
 
-    // 6. NEBLINA & NEVE
-    if (env.type === 'fog') {
-        ctx.fillStyle = 'rgba(180, 200, 200, 0.55)';
-        ctx.fillRect(0, horizonY - 10, 320, 60);
-        ctx.fillStyle = 'rgba(180, 200, 200, 0.25)';
-        ctx.fillRect(0, horizonY + 50, 320, 80);
-    }
-
-    if (env.type === 'snow' || env.type === 'night') {
-        ctx.fillStyle = '#ffffff';
-        snowflakes.forEach(s => {
-            ctx.fillRect(Math.floor(s.x), Math.floor(s.y), 2, 2);
-        });
-    }
-
-    // 7. HUD
+    // 6. HUD
     drawHUD(env);
 }
 
@@ -651,7 +627,6 @@ function drawSpriteMatrix(sprite, cx, cy, scale, primaryColor) {
     }
 }
 
-// HUD COM EXIBIÇÃO DE VIDAS
 function drawHUD(env) {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, 320, 18);
@@ -680,7 +655,6 @@ function drawHUD(env) {
     ctx.fillText(`ETAPA: ${env.name}`, 8, 221);
 }
 
-// LOOP PRINCIPAL
 function loop(timestamp) {
     let dt = (timestamp - lastTime) / 1000;
     if (isNaN(dt) || dt > 0.1) dt = 0.1;
